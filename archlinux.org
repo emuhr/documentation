@@ -305,3 +305,13 @@ let g:sclangTerm = "kitty"
 "scnvim
 let g:UltiSnipsSnippetDirectories = ['UltiSnips', 'scnvim-data']
 #+END_SRC
+* Dot files
+Currently I store my dotfiles using Git bare repository (https://www.atlassian.com/git/tutorials/dotfiles)
+The steps for initialization are:
+#+BEGIN_SRC shell
+git init --bare $HOME/.cfg
+alias config='/usr/bin/git --git-dir=$HOME/.cfg/ --work-tree=$HOME'
+config config --local status.showUntrackedFiles no
+echo "alias config='/usr/bin/git --git-dir=$HOME/.cfg/ --work-tree=$HOME'" >> $HOME/.bashrc
+config remote add origin https://github.com/emuhr/dotfiles.git
+#+END_SRC
