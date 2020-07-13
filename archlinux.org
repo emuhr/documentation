@@ -1,0 +1,307 @@
+#+TITLE: Archlinux
+
+* Partition layout
+#+BEGIN_SRC shell
+# <file system> <dir> <type> <options> <dump> <pass>
+# /dev/sda1
+UUID=77ca1b6f-083e-4204-a732-9d171571d2d2	/         	ext4      	rw,relatime	0 1
+
+# /dev/sda2
+UUID=3f597b25-15b4-43ec-9981-0cc1c453790a	none      	swap      	defaults  		0 0
+
+# dev/sdb2
+# EFI boot
+UUID=C459-7055		 						/boot		vfat		defaults		0 2
+
+# dev/sdb4
+# windows
+# UUID=DEBC6044BC601973						/mnt/windows	fuse		defaults	0 2
+#+END_SRC
+
+Obtain device UUIDs with:
+#+BEGIN_SRC shell
+lsblk -dno UUID /dev/sda1
+#+END_SRC
+* Bootloader configuration
+GRUB is used a the bootloader. It needs the UEFI boot partition mounted (/dev/sdb2).
+
+** A kernel update requires re-installement of GRUB.
+
+This is achieved with the following script located in /usr/local/bin/kernel-update
+#+BEGIN_SRC shell
+#!/usr/bin/env bash
+# -*- mode: shell-script; indent-tabs-mode: nil; sh-basic-offset: 4; -*-
+# ex: ts=8 sw=4 sts=4 et filetype=sh
+
+read -p "Run 'sudo grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB'" -n 1 -r
+echo    # (optional) move to a new line
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    sudo grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+else
+    echo "Aborting"
+    exit
+fi
+
+read -p "Run 'sudo grub-mkconfig -o /boot/grub/grub.cfg'" -n 1 -r
+echo    # (optional) move to a new line
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    sudo grub-mkconfig -o /boot/grub/grub.cfg
+else
+    echo "Aborting"
+    exit
+fi
+
+echo "Better reboot now..."
+#+END_SRC
+** Silent GRUB
+In order to silence GRUB messages the following options must be passed to the GRUB config in /etc/default/grub:
+#+BEGIN_SRC shell
+GRUB_CMDLINE_LINUX_DEFAULT="quiet logleve=3"
+#+END_SRC
+
+* Audio
+I use a Presonus Audiobox 1818VSL USB audio interface.
+I use Mixbus to record and mix audio.
+Jack is used as the interface to Alsa. Unfortunately consumer applications like browsers, steam etc. cannot interface with Jack directly (or I do not know how). Therefore we need to configure Jack to communicate with Alsa and have Pulseaudio communicate with Jack.
+The setup follows the manual sink configuration method: https://wiki.archlinux.org/index.php/PulseAudio/Examples#The_manual_sink_configuration_method
+In the file /etc/pulse/default.pa we need to add the line:
+#+BEGIN_SRC shell
+load-module module-jackdbus-detect channels=2
+#+END_SRC
+pavucontrol can be used to check if the programs appear correctly and if the Jack sink output is selected correctly.
+
+The ~/.asoundrc configuration file must look like this:
+#+BEGIN_SRC
+pcm.pulse {
+    type pulse
+}
+
+ctl.pulse {
+    type pulse
+}
+
+pcm.!default {
+    type pulse
+}
+ctl.!default {
+    type pulse
+}
+#+END_SRC
+
+PulseAudio needs to be started before qjackctl in .xinitrc:
+#+BEGIN_SRC shell
+#
+# pulseaudio
+#
+pulseaudio &
+
+#
+# qjackctl
+#
+qjackctl &
+#+END_SRC
+
+In QJackCtl we need to configure the execution of a script called "pajackconnect": https://github.com/brummer10/pajackconnect
+
+To see if it works open QJACkCtl and look for the "PulseAudio JACK sink" properly connected to system playback.
+#+ATTR_ORG: :width 400
+[[file:images/2020-07-13-181502_1659x863_scrot.png]]
+
+* Window manager
+Currently I'm using xmonad, a tiling window manager.
+My configuration is based on:
+- The archlinux wiki: https://wiki.archlinux.org/index.php/Xmonad
+- The excellent configuration of Derek Taylor of Distrotube: https://gitlab.com/dwt1/dotfiles/-/tree/master/.xmonad
+
+I'm starting Xmonad through xinit:
+#+BEGIN_SRC shell
+exec xmonad
+#+END_SRC
+
+* Cursor size
+The default cursor in X is way to big, so I set the size in .Xresources:
+#+BEGIN_SRC shell
+Xcursor.size: 32
+#+END_SRC
+
+We need to source .Xresources from .xinitrc:
+#+BEGIN_SRC shell
+xrdb /home/emanuel/.Xresources
+#+END_SRC
+
+* Color shift
+redshift is used to shift on screen colors at night to a orange tint which is much nicer on the eyes. This is done in .xinitrc (with Ludwigsburg coordinages):
+#+BEGIN_SRC shell
+redshift -l 48.89731:9.19161 &
+#+END_SRC
+* Key repeat
+Custom key repeat settings in xinitrc, changed often:
+#+BEGIN_SRC shell
+# set keyrepeat
+xset r rate 200 30
+#+END_SRC
+* Qutebrowser
+Qutebrowser is used as my main browser.
+In the default configuration the font size was too small for my 4k monitor. The following setting in xinitrc controls the scale factor for QT applications:
+#+BEGIN_SRC shell
+# qt scale factor for qutebrowser
+export QT_SCALE_FACTOR=1.0
+#+END_SRC
+
+Display PDF using pdfjs in the browser:
+#+BEGIN_SRC shell
+c.content.pdfjs = True
+#+END_SRC
+
+I want to have downloads saved to a custom folder:
+#+BEGIN_SRC shell
+c.downloads.location.directory = "/home/emanuel/downloads"
+#+END_SRC
+
+Open new tabs in the background:
+#+BEGIN_SRC shell
+c.tabs.background = True
+#+END_SRC
+
+I configured ad blocking using jblock: https://gitlab.com/jgkamat/jblock
+#+BEGIN_SRC shell
+c.content.host_blocking.enabled = False
+
+import sys, os
+
+sys.path.append(os.path.join(sys.path[0], "jblock"))
+config.source("jblock/jblock/integrations/qutebrowser.py")
+config.set(
+    "content.host_blocking.lists",
+    [
+        "https://easylist.to/easylist/easylist.txt",
+        "https://easylist.to/easylist/easyprivacy.txt",
+        "https://easylist.to/easylist/fanboy-annoyance.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/annoyances.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/resource-abuse.txt",
+        "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt",
+        "https://www.malwaredomainlist.com/hostslist/hosts.txt",
+# This entry causes qutebrowser to block sites e.g. I think with hashes in the URL like
+# https://wiki.archlinux.org/index.php/I3#Launching_programs_on_specific_workspaces
+#        "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=1&mimetype=plaintext",
+    ],
+)
+#+END_SRC
+
+This is a shortcut to launch videos from Youtube with MPV:
+#+BEGIN_SRC shell
+# mpv bind
+# :bind ,m spawn mpv {url}
+config.bind(',e', 'spawn mpv {url}')
+#+END_SRC
+* vim
+This is my current vim configuration:
+#+BEGIN_SRC shell
+syntax on              " enable syntax highlighting
+set cursorline          " highlight the current line
+set nobackup            " don't create pointless backup files; Use VCS instead
+set autoread            " watch for file changes
+set number relativenumber  " show relative line numbers
+set showcmd             " show selection metadata
+set showmode            " show INSERT, VISUAL, etc. mode
+set showmatch           " show matching brackets
+set autoindent smartindent  " auto/smart indent
+set smarttab            " better backspace and tab functionality
+set scrolloff=5         " show at least 5 lines above/below
+filetype on             " enable filetype detection
+filetype indent on      " enable filetype-specific indenting
+filetype plugin on      " enable filetype-specific plugins
+
+" column-width visual indication
+"let &colorcolumn=join(range(81,999),",")
+"highlight ColorColumn ctermbg=235 guibg=#001D2F
+
+" tabs and indenting
+set autoindent          " auto indenting
+set smartindent         " smart indenting
+set expandtab           " spaces instead of tabs
+set tabstop=2           " 2 spaces for tabs
+set shiftwidth=2        " 2 spaces for indentation
+
+" bells
+set noerrorbells        " turn off audio bell
+set visualbell          " but leave on a visual bell
+
+" search
+set hlsearch            " highlighted search results
+set showmatch           " show matching bracket
+
+" other
+set guioptions=aAace    " don't show scrollbar in MacVim
+" call pathogen#infect()  " use pathogen
+
+
+"
+" vim-plug start
+"
+" Auto installation of vim-plugged
+if empty(glob('~/.vim/autoload/plug.vim'))
+  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
+    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+  autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
+endif
+"
+" Specify a directory for plugins
+" - For Neovim: ~/.local/share/nvim/plugged
+" - Avoid using standard Vim directory names like 'plugin'
+call plug#begin('~/.vim/plugged')
+
+" Shorthand notation; fetches https://github.com/junegunn/vim-easy-align
+Plug 'JamshedVesuna/vim-markdown-preview'
+Plug 'junegunn/vim-easy-align'
+Plug 'rustushki/JavaImp.vim'
+Plug 'ayu-theme/ayu-vim'
+Plug 'vim-airline/vim-airline'
+Plug 'vim-airline/vim-airline-themes'
+Plug 'tidalcycles/vim-tidal'
+Plug 'tpope/vim-surround'
+Plug 'aklt/plantuml-syntax'
+Plug 'supercollider/scvim'
+Plug 'davidgranstrom/scnvim'
+Plug 'SirVer/ultisnips'
+Plug 'honza/vim-snippets'
+Plug 'l04m33/vlime', {'rtp': 'vim/'}
+"Plug 'liuchengxu/vim-clap', { 'do': function('clap#helper#build_all') }
+"Plug 'fatih/vim-go', { 'do': ':GoUpdateBinaries' }
+
+" Initialize plugin system
+call plug#end()
+"
+" vim-plug end
+"
+"
+
+" vim-easy-align
+" Start interactive EasyAlign in visual mode (e.g. vipga)
+xmap ga <Plug>(EasyAlign)
+" Start interactive EasyAlign for a motion/text object (e.g. gaip)
+nmap ga <Plug>(EasyAlign)
+"  Align GitHub-flavored Markdown tables
+au FileType markdown vmap <Leader><Bslash> :EasyAlign*<Bar><Enter>
+
+" ayu theme
+set termguicolors     " enable true colors support
+"let ayucolor="light"  " for light version of theme
+let ayucolor="mirage" " for mirage version of theme
+"let ayucolor="dark"   " for dark version of theme
+colorscheme ayu
+
+" deoplete
+"let g:deoplete#enable_at_startup = 1
+
+" scvim configuration
+let g:sclangTerm = "kitty"
+
+"scnvim
+let g:UltiSnipsSnippetDirectories = ['UltiSnips', 'scnvim-data']
+#+END_SRC
