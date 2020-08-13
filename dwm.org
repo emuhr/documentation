@@ -1,0 +1,35 @@
+#+TITLE: Dwm
+
+* structure
+I follow the structure proposed by others e.g. HexDSL to have git branches for the config and the patches.
+I have a config branch where all config changes are.
+
+* patching
+For every new patch I follow this procedure:
+#+BEGIN_SRC shell
+# clean directory
+make clean && rm -f config.h && git reset --hard origin/master
+
+# create branch and switch to
+git branch <patch>
+git checkout <patch>
+
+# apply patch
+git apply <patch_file> -3v
+
+# commit and switch to master
+git add dwm.c
+git commit -m <patch>
+git checkout master
+
+# apply patch and all other patches
+git merge <patch> -m patch
+git merge config -m config
+...
+
+# clean build & install
+make && sudo make clean install
+
+# kill dwm with Mod - shift - q
+
+#+END_SRC
