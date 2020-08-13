@@ -119,6 +119,13 @@ I'm starting Xmonad through xinit:
 #+BEGIN_SRC shell
 exec xmonad
 #+END_SRC
+#
+Xmonad links the .xsession to its own file:
+.xsession -> /home/emanuel/.xmonad/bin/xsession
+
+I want to override this bu symlinking xinitrc to .xsession:
+ln -s .xinitrc .xsession
+
 
 * Cursor size
 The default cursor in X is way to big, so I set the size in .Xresources:
@@ -314,4 +321,16 @@ alias config='/usr/bin/git --git-dir=$HOME/.cfg/ --work-tree=$HOME'
 config config --local status.showUntrackedFiles no
 echo "alias config='/usr/bin/git --git-dir=$HOME/.cfg/ --work-tree=$HOME'" >> $HOME/.bashrc
 config remote add origin https://github.com/emuhr/dotfiles.git
+#+END_SRC
+* SSD disc trim
+See https://wiki.archlinux.org/index.php/Solid_state_drive
+Install the util-linux package if it is not already installed. It provides fstrim.timer
+Activate the service:
+#+BEGIN_SRC shell
+sudo systemctl enable fstrim.timer
+#+END_SRC
+
+Check the execution with journalctl:
+#+BEGIN_SRC shell
+sudo journalctl -u fstrim.timer
 #+END_SRC
